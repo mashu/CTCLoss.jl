@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mashu/CTCLoss.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/mashu/CTCLoss.jl/actions/workflows/CI.yml)
 [![codecov](https://codecov.io/gh/mashu/CTCLoss.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/mashu/CTCLoss.jl)
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://mashu.github.io/CTCLoss.jl/stable)
+[![Documentation](https://img.shields.io/badge/docs-blue.svg)](https://mashu.github.io/CTCLoss.jl/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Batched **Connectionist Temporal Classification (CTC)** loss and greedy decoding for Julia, with GPU support via [KernelAbstractions](https://github.com/JuliaGPU/KernelAbstractions.jl). Differentiable via [ChainRulesCore](https://github.com/JuliaDiff/ChainRulesCore.jl) (Zygote-compatible).
