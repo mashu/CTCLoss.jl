@@ -34,7 +34,10 @@ jobs:
       - uses: julia-actions/julia-processcoverage@v1
         id: process-coverage
 
-      - uses: codecov/codecov-action@v4
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: mashu/CTCLoss.jl
           files: ${{ steps.process-coverage.outputs.coveragefile }}
           fail_ci_if_error: false
