@@ -1,6 +1,10 @@
-# Optional env for dev/check_pytorch_parity.jl. Main package has no PyCall dependency.
+# Optional env for dev parity scripts. Main package has no PyCall/Flux dependency.
 [deps]
+Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
+Flux = "0.14"
 PyCall = "1"
+Zygote = "0.6"

@@ -2,6 +2,10 @@
 
 Batched **Connectionist Temporal Classification (CTC)** loss and greedy decoding for Julia, with GPU support via [KernelAbstractions](https://github.com/JuliaGPU/KernelAbstractions.jl). Gradients are provided through a custom [ChainRulesCore](https://github.com/JuliaDiff/ChainRulesCore.jl) `rrule`, so [Zygote](https://github.com/FluxML/Zygote.jl) and other AD systems work without tracing through the kernels.
 
+## Why this package?
+
+[Flux](https://github.com/FluxML/Flux.jl) provides `Flux.ctc_loss(ŷ, y)` for a **single** sample: one (classes×time) matrix and one label sequence. To train on batches you must loop over samples, which is slow and does not map well to GPUs. CTCLoss.jl implements **batched** CTC: one forward-backward over the whole batch, so a single loss and gradient call per batch. The same code runs on CPU and CUDA (KernelAbstractions). We match Flux and PyTorch numerically (see the `dev/` parity scripts in the repo).
+
 ## Features
 
 - **Batched** CTC loss (no per-sample loops; one forward-backward over the batch).

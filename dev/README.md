@@ -1,3 +1,9 @@
+## Flux parity check
+
+`check_flux_parity.jl` compares CTCLoss.jl with **Flux.ctc_loss** on a single sample. Flux's API is `ctc_loss(ŷ, y)` with ŷ = (classes×time) and y = 1D labels; we use the same data with batch size 1 and check loss and gradient match.
+
+**Run from repo root:** `julia --project=dev dev/check_flux_parity.jl`
+
 ## PyTorch parity check
 
 `check_pytorch_parity.jl` compares CTCLoss.jl with PyTorch’s `torch.nn.functional.ctc_loss` on **the same inputs** (same logits, same targets, same lengths) and checks that:
@@ -20,10 +26,11 @@ julia --project=dev -e 'using Pkg; Pkg.instantiate()'
 julia --project=dev dev/check_pytorch_parity.jl
 ```
 
-**Requirements:** Python with `torch` available to PyCall (e.g. `using Conda; Conda.add("pytorch")` then rebuild PyCall if needed). Not required for normal use of CTCLoss.jl.
+**Requirements:** For PyTorch: Python with `torch` available to PyCall (e.g. `using Conda; Conda.add("pytorch")` then rebuild PyCall if needed). For Flux: the dev env includes Flux and Zygote. None of this is required for normal use of CTCLoss.jl.
 
 ### Last check
 
+## Against PyTorch
 ```
 CTCLoss.jl vs PyTorch CTC parity check (optional, not in CI)
 
@@ -39,6 +46,23 @@ Seed = 123, C = 20, T = 30, B = 4
   Loss (our reduction):  Julia 82.65334110971182  PyTorch 82.65334110971182  match: true
   Loss (PyTorch reduction): Julia 53.059622937939416  PyTorch 53.059622937939416  match: true
   Grad  Julia norm: 2.1488481497732037  PyTorch norm: 2.1488481497731975  match: true
+
+Parity check passed.
+```
+
+## Against Flux.ctc_loss
+```
+CTCLoss.jl vs Flux.ctc_loss parity check (single sample, optional, not in CI)
+
+Seed = 0, C = 20, T = 40
+  Loss  Flux 121.33313570022818  CTCLoss 121.33313570022818  match: true
+  Grad  Flux norm 5.290933885883182  CTCLoss norm 5.290933885883182  match: true
+Seed = 1, C = 20, T = 40
+  Loss  Flux 101.35345764180751  CTCLoss 101.35345764180751  match: true
+  Grad  Flux norm 4.161229757580644  CTCLoss norm 4.161229757580644  match: true
+Seed = 123, C = 20, T = 40
+  Loss  Flux 99.74341054424347  CTCLoss 99.74341054424347  match: true
+  Grad  Flux norm 3.9765631698886974  CTCLoss norm 3.9765631698886974  match: true
 
 Parity check passed.
 ```
