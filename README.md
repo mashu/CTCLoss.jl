@@ -18,7 +18,3 @@ loss = CTCLoss.ctc_loss_batched(logits, targets, input_lengths)
 grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, input_lengths), logits)[1]
 decoded = CTCLoss.ctc_greedy_decode(logits, input_lengths)
 ```
-
-**Documentation:** [mashu.github.io/CTCLoss.jl](https://mashu.github.io/CTCLoss.jl/stable)
-
-**License:** MIT

@@ -1,0 +1,6 @@
+# Optional env for dev/check_pytorch_parity.jl. Main package has no PyCall dependency.
+[deps]
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+
+[compat]
+PyCall = "1"
