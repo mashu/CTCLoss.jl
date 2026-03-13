@@ -218,4 +218,41 @@ const BLANK = 51
         loss_default = CTCLoss.ctc_loss_batched(logits, targets, [10])
         @test loss_kw ≈ loss_default
     end
+
+    @testset "ctc_loss_batched 4-arg (positional blank)" begin
+        logits = randn(Float32, V, 10, 2)
+        targets = [[1, 2], [3]]
+        input_lengths = [10, 10]
+        loss_4arg = CTCLoss.ctc_loss_batched(logits, targets, input_lengths, BLANK)
+        loss_kw = CTCLoss.ctc_loss_batched(logits, targets, input_lengths; blank = BLANK)
+        @test loss_4arg ≈ loss_kw
+        @test isfinite(loss_4arg)
+    end
+
+    @testset "ctc_greedy_decode 3-arg (positional blank)" begin
+        logits = randn(Float32, V, 8, 1)
+        logits[2, 1:4, 1] .= 10.0f0
+        logits[BLANK, 5:8, 1] .= 10.0f0
+        result_3arg = CTCLoss.ctc_greedy_decode(logits, [8], BLANK)
+        result_kw = CTCLoss.ctc_greedy_decode(logits, [8]; blank = BLANK)
+        @test result_3arg == result_kw
+        @test result_3arg[1] == [2]
+    end
+
+    @testset "gradient with variable input_lengths (covers t > Tl[b] branch)" begin
+        # When input_lengths[b] < T, grad is zero for t > input_lengths[b]
+        T_frames = 20
+        logits = randn(Float32, V, T_frames, 2)
+        targets = [[1, 2], [3, 4]]
+        input_lengths = [12, T_frames]  # first sample uses only 12 frames
+        _, grad = CTCLoss.ctc_forward_backward(
+            logits,
+            CTCLoss.expand_ctc_labels(targets, BLANK)...,
+            input_lengths,
+        )
+        @test size(grad) == size(logits)
+        # For b=1, times 13:20 are past valid length; gradient should be zero there
+        @test all(grad[:, 13:T_frames, 1] .== 0)
+        @test any(grad[:, 1:12, 1] .!= 0)
+    end
 end
