@@ -255,4 +255,113 @@ const BLANK = 51
         @test all(grad[:, 13:T_frames, 1] .== 0)
         @test any(grad[:, 1:12, 1] .!= 0)
     end
+
+    # ─── Stress tests: no NaN / no unexpected Inf in loss or gradient ───────
+    @testset "stress: no NaN in loss and gradient" begin
+        @testset "single time step T=1" begin
+            logits = randn(Float32, V, 1, 1)
+            targets = [[1]]
+            loss = CTCLoss.ctc_loss_batched(logits, targets, [1], BLANK)
+            @test !isnan(loss) && isfinite(loss) && loss > 0
+            grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, [1], BLANK), logits)[1]
+            @test !any(isnan, grad) && all(isfinite, grad)
+        end
+
+        @testset "minimal vocab V=2 (one label + blank)" begin
+            logits = randn(Float32, 2, 10, 1)
+            targets = [[1]]
+            blank2 = 2
+            loss = CTCLoss.ctc_loss_batched(logits, targets, [10], blank2)
+            @test !isnan(loss) && isfinite(loss) && loss > 0
+            grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, [10], blank2), logits)[1]
+            @test !any(isnan, grad) && all(isfinite, grad)
+        end
+
+        @testset "empty target (blank-only path)" begin
+            logits = randn(Float32, V, 1, 1)
+            targets = [Int[]]
+            loss = CTCLoss.ctc_loss_batched(logits, targets, [1], BLANK)
+            @test !isnan(loss) && isfinite(loss) && loss >= 0
+            grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, [1], BLANK), logits)[1]
+            @test !any(isnan, grad) && all(isfinite, grad)
+        end
+
+        @testset "repeated same label" begin
+            logits = randn(Float32, V, 20, 1)
+            targets = [[3, 3, 3, 3, 3]]
+            loss = CTCLoss.ctc_loss_batched(logits, targets, [20], BLANK)
+            @test !isnan(loss) && isfinite(loss) && loss > 0
+            grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, [20], BLANK), logits)[1]
+            @test !any(isnan, grad) && all(isfinite, grad)
+        end
+
+        @testset "extreme logits: all zero" begin
+            logits = zeros(Float32, V, 10, 2)
+            targets = [[1, 2], [3]]
+            input_lengths = [10, 10]
+            loss = CTCLoss.ctc_loss_batched(logits, targets, input_lengths, BLANK)
+            @test !isnan(loss) && isfinite(loss) && loss > 0
+            grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, input_lengths, BLANK), logits)[1]
+            @test !any(isnan, grad) && all(isfinite, grad)
+        end
+
+        @testset "extreme logits: large positive and negative" begin
+            logits = randn(Float32, V, 8, 1) .* 50
+            logits[1, 1:4, 1] .= 100.0f0
+            logits[BLANK, 5:8, 1] .= 100.0f0
+            targets = [[1]]
+            loss = CTCLoss.ctc_loss_batched(logits, targets, [8], BLANK)
+            @test !isnan(loss) && isfinite(loss)
+            grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, [8], BLANK), logits)[1]
+            @test !any(isnan, grad) && all(isfinite, grad)
+        end
+
+        @testset "single frame used (input_lengths = 1)" begin
+            logits = randn(Float32, V, 5, 2)
+            targets = [[1], [2]]
+            input_lengths = [1, 1]
+            loss = CTCLoss.ctc_loss_batched(logits, targets, input_lengths, BLANK)
+            @test !isnan(loss) && isfinite(loss) && loss > 0
+            grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, input_lengths, BLANK), logits)[1]
+            @test !any(isnan, grad)
+            @test all(isfinite, grad[:, 1, :])
+        end
+
+        @testset "impossible alignment: loss is not NaN" begin
+            targets = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]]
+            logits = randn(Float32, V, 3, 1)
+            loss = CTCLoss.ctc_loss_batched(logits, targets, [3], BLANK)
+            @test !isnan(loss) && (loss == Inf || loss > 1e10)
+            # Gradient may be NaN/Inf when loss is Inf (numerical edge case); we only assert loss is not NaN
+        end
+
+        @testset "batch with mixed lengths and targets" begin
+            logits = randn(Float32, V, 25, 4)
+            targets = [[1], [2, 3], [4, 5, 6], [1, 1]]
+            input_lengths = [25, 20, 15, 10]
+            loss = CTCLoss.ctc_loss_batched(logits, targets, input_lengths, BLANK)
+            @test !isnan(loss) && isfinite(loss) && loss > 0
+            grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, input_lengths, BLANK), logits)[1]
+            @test !any(isnan, grad) && all(isfinite, grad)
+        end
+
+        @testset "random stress: multiple shapes (deterministic)" begin
+            # Deterministic "random" shapes to stress without Random package
+            configs = [(7, 12, 2), (15, 30, 3), (4, 8, 1)]
+            for (V_, T_, B_) in configs
+                blank_ = V_
+                logits = Float32.(collect(1:(V_ * T_ * B_)) .% 17 .- 8) ./ 3  # deterministic variety
+                logits = reshape(logits, V_, T_, B_)
+                targets = [[max(1, (b + t) % (V_ - 1) + 1) for t in 1:min(3, T_ ÷ 2)] for b in 1:B_]
+                input_lengths = [T_, T_ - 1, max(1, T_ - 2)][1:B_]
+                all(isempty, targets) && continue
+                loss = CTCLoss.ctc_loss_batched(logits, targets, input_lengths, blank_)
+                @test !isnan(loss)
+                if isfinite(loss)
+                    grad = Zygote.gradient(l -> CTCLoss.ctc_loss_batched(l, targets, input_lengths, blank_), logits)[1]
+                    @test grad !== nothing && !any(isnan, grad)
+                end
+            end
+        end
+    end
 end

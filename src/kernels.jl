@@ -12,11 +12,15 @@
 end
 
 @kernel function ctc_fwd_init_kernel!(α::AbstractArray{T,3},
-        @Const(em::AbstractArray{T,3}), @Const(Sl::AbstractVector{Int32})) where {T}
+        @Const(em::AbstractArray{T,3}), @Const(Sl::AbstractVector{Int32}),
+        @Const(Tl::AbstractVector{Int32})) where {T}
     b = @index(Global)
     @inbounds begin
-        Sl[b] >= Int32(1) && (α[1, 1, b] = em[1, 1, b])
-        Sl[b] >= Int32(2) && (α[2, 1, b] = em[2, 1, b])
+        # FIX (Bug 2): Guard against Tl[b] == 0 — skip init entirely
+        if Tl[b] >= Int32(1)
+            Sl[b] >= Int32(1) && (α[1, 1, b] = em[1, 1, b])
+            Sl[b] >= Int32(2) && (α[2, 1, b] = em[2, 1, b])
+        end
     end
 end
 
@@ -39,8 +43,11 @@ end
     b = @index(Global)
     @inbounds begin
         Sb = Sl[b]; Tb = Tl[b]
-        Sb >= Int32(1) && (β[Sb, Tb, b] = T(0))
-        Sb >= Int32(2) && (β[Sb - Int32(1), Tb, b] = T(0))
+        # FIX (Bug 2): Guard against Tb == 0
+        if Tb >= Int32(1)
+            Sb >= Int32(1) && (β[Sb, Tb, b] = T(0))
+            Sb >= Int32(2) && (β[Sb - Int32(1), Tb, b] = T(0))
+        end
     end
 end
 
@@ -70,9 +77,14 @@ end
     b = @index(Global)
     @inbounds begin
         Sb = Sl[b]; Tb = Tl[b]
-        v = α[Sb, Tb, b]
-        Sb >= Int32(2) && (v = logaddexp(v, α[Sb - Int32(1), Tb, b]))
-        losses[b] = -v
+        # FIX (Bug 2): When Tb == 0 there is no valid alignment at all
+        if Tb < Int32(1) || Sb < Int32(1)
+            losses[b] = T(Inf)
+        else
+            v = α[Sb, Tb, b]
+            Sb >= Int32(2) && (v = logaddexp(v, α[Sb - Int32(1), Tb, b]))
+            losses[b] = -v
+        end
     end
 end
 
@@ -85,11 +97,19 @@ end
     @inbounds if t > Tl[b]
         grad[k, t, b] = T(0)
     else
-        ab = T(-Inf)
-        Sb = Sl[b]
-        for s in Int32(1):Sb
-            lab[s, b] == k && (ab = logaddexp(ab, α[s, t, b] + β[s, t, b]))
+        # FIX (Bug 1): When the alignment is impossible nll[b] == Inf,
+        # so ab + nll[b] = -Inf + Inf = NaN.  Emit zero gradient instead —
+        # there is no probability mass to redistribute.
+        nll_b = nll[b]
+        if isinf(nll_b) && nll_b > T(0)
+            grad[k, t, b] = T(0)
+        else
+            ab = T(-Inf)
+            Sb = Sl[b]
+            for s in Int32(1):Sb
+                lab[s, b] == k && (ab = logaddexp(ab, α[s, t, b] + β[s, t, b]))
+            end
+            grad[k, t, b] = exp(lp[k, t, b]) - exp(ab + nll_b)
         end
-        grad[k, t, b] = exp(lp[k, t, b]) - exp(ab + nll[b])
     end
 end
